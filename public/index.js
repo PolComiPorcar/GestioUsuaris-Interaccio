@@ -1,6 +1,7 @@
 let idGame, idPlayer;
 let points = [0, 0, 0];
 let winner = null;
+let def = null;
 
 const textState = document.getElementById('state');
 const score1 = document.getElementById('score1');
@@ -8,6 +9,7 @@ const score2 = document.getElementById('score2');
 const divGame = document.getElementById('game');
 const inputGuess = document.getElementById('input-guess');
 const revealedWord = document.getElementById('word-container');
+const definition = document.getElementById('definition');
 const letterTemplate = revealedWord.querySelector('#letter-template');
 
 // Conectar al servidor del juego
@@ -18,6 +20,7 @@ function unirseAlJoc() {
             idGame = data.game_id;
             idPlayer = data.player_id;
             console.log(data.word);
+            console.log(data.definition);
             
             comprovarEstatDelJoc();
         });
@@ -35,6 +38,8 @@ function comprovarEstatDelJoc() {
 
             points = joc.points;
             winner = joc.winner;
+            def = joc.definition;
+            definition.innerText = def;
 
             score1.innerText = points[0];
             score2.innerText = points[1];
@@ -71,7 +76,6 @@ function comprovarEstatDelJoc() {
             setTimeout(comprovarEstatDelJoc, 500);
         });
 }
-
 
 
 function createAndUpdateWordContainer(word_revealed){
