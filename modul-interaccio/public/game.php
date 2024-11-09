@@ -1,6 +1,5 @@
 <?php
-define('API_URL', 'https://clientes.api.greenborn.com.ar/public-random-word');
-
+define('API_URL', 'https://random-word-api.vercel.app/api?words=1');
 
 function fetchRandomWord(){
     // Initialize cURL session
@@ -22,6 +21,44 @@ function fetchRandomWord(){
     } else {
         // Decode JSON response if it's in JSON format
         $data = json_decode($response, true);
+    }
+
+    // Close cURL session
+    curl_close($curl);
+    return $data;
+}
+function fetchDictionariWord($word){
+    // Initialize cURL session
+    $curl = curl_init();
+    $api_url = 'https://api.dictionaryapi.dev/api/v2/entries/en/' . $word;
+    // Set cURL options
+    curl_setopt($curl, CURLOPT_URL, $api_url); // Set the URL
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true); // Return the transfer as a string
+    curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+
+
+    // Execute cURL request
+    $response = curl_exec($curl);
+    $data = null;
+
+    // Check for errors
+    if (curl_errno($curl)) {
+        echo 'Error:' . curl_error($curl);
+    } else {
+        // Decode JSON response if it's in JSON format
+        $data = json_decode($response, true);
+        if (isset($data[0]['meanings'])) { 
+            foreach ($data as $entry) {
+                foreach ($entry['meanings'] as $meaning) {
+                    if (isset($meaning['definitions'][0]['definition'])) {
+                        $data = $meaning['definitions'][0]['definition'];
+                        break 2;
+                    }
+                }
+            }
+        } else {
+            $data = null;
+        }
     }
 
     // Close cURL session
@@ -55,7 +92,7 @@ function conflictResolver($db , $game_id ,$conflictRecords){
     $interval = $now->diff($oldestDateTime);
     $millisecondsDifference = (($interval->days * 24 * 60 * 60) + $interval->h * 3600 + $interval->i * 60 + $interval->s) * 1000 + (int)($interval->f * 1000);
 
-    if ($millisecondsDifference >= 5000) {
+    if ($millisecondsDifference >= 500) {
           
         $randomIndex = array_rand($conflictRecords); // Get a random index
         $winner = $conflictRecords[$randomIndex]['playerID'];
@@ -95,6 +132,7 @@ switch ($action) {
         $player_id = $_SESSION['player_id'];
         $game_id = null;
         $word = null;
+        $definition = null;
 
         // Intentar unirse a un juego existente donde haya menos de 3 jugadores
         $stmt = $db->prepare('SELECT game_id FROM games WHERE (player2 IS NULL) LIMIT 1');
@@ -111,17 +149,24 @@ switch ($action) {
         } else {
             // Crear un nuevo juego
             $game_id = uniqid();
-            $stmt = $db->prepare('INSERT INTO games (game_id, player1, word, word_revealed) VALUES (:game_id, :player_id, :word, :word_revealed)');
+            $stmt = $db->prepare('INSERT INTO games (game_id, player1, word, word_revealed, word_definition, last_reveal_time) VALUES (:game_id, :player_id, :word, :word_revealed, :word_definition, :last_reveal_time)');
 
-            $word =  removeAccents( fetchRandomWord()[0]);
+            do {
+                $word = removeAccents(fetchRandomWord()[0]);
+                $definition = fetchDictionariWord($word);
+            } while (!$definition);
+            $lastRevealTime = (new DateTime())->format('Y-m-d H:i:s');
+
             $stmt->bindValue(':game_id', $game_id);
             $stmt->bindValue(':player_id', $player_id);
             $stmt->bindValue(':word', $word);
+            $stmt->bindValue(':word_definition', $definition);
             $stmt->bindValue(':word_revealed', str_repeat('_', strlen($word)));
+            $stmt->bindValue(':last_reveal_time', $lastRevealTime);
             $stmt->execute();
         }
 
-        echo json_encode(['game_id' => $game_id, 'player_id' => $player_id , 'word' => $word]); //TODO : REMOVE WORD
+        echo json_encode(['game_id' => $game_id, 'player_id' => $player_id , 'word' => $word, 'definition' => $definition]); //TODO : REMOVE WORD
         break;
 
     case 'status':
@@ -137,22 +182,63 @@ switch ($action) {
 
         $conflictRecords = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if(count($conflictRecords) > 0){
-            $winner = conflictResolver($db , $game_id , $conflictRecords);
-
-            if($winner){
+        if (count($conflictRecords) > 0) {
+            $winner = conflictResolver($db, $game_id, $conflictRecords);
+        
+            // Obtén las puntuaciones actuales antes de definir un ganador
+            $stmt = $db->prepare("SELECT points_player1, points_player2 FROM games WHERE game_id = :game_id");
+            $stmt->bindValue(':game_id', $game_id);
+            $stmt->execute();
+            $points = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+            if ($points) {
+                $pointsPlayer1 = $points['points_player1'];
+                $pointsPlayer2 = $points['points_player2'];
+        
+                // Incrementa puntos según corresponda
                 $stmt = $db->prepare(<<<SQL
                     UPDATE games 
                     SET 
-                        winner = :winner,
                         points_player1 = points_player1 + CASE WHEN player1 = :winner THEN 10 ELSE 0 END,
                         points_player2 = points_player2 + CASE WHEN player2 = :winner THEN 10 ELSE 0 END 
                     WHERE game_id = :game_id
-                    SQL);
-
-                
+                SQL);
+        
                 $stmt->bindValue(':winner', $winner);
-                $stmt->bindValue(':game_id', $game_id);              
+                $stmt->bindValue(':game_id', $game_id);
+                $stmt->execute();
+        
+                // Obtén nuevamente las puntuaciones actualizadas
+                $stmt = $db->prepare("SELECT points_player1, points_player2 FROM games WHERE game_id = :game_id");
+                $stmt->bindValue(':game_id', $game_id);
+                $stmt->execute();
+                $updatedPoints = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+                if ($updatedPoints) {
+                    $pointsPlayer1 = $updatedPoints['points_player1'];
+                    $pointsPlayer2 = $updatedPoints['points_player2'];
+        
+                    // Verifica si alguien alcanzó los 50 puntos después de actualizar
+                    if ($pointsPlayer1 >= 50) {
+                        $stmt = $db->prepare("UPDATE games SET winner = player1 WHERE game_id = :game_id");
+                        $stmt->bindValue(':game_id', $game_id);
+                        $stmt->execute();
+                    } elseif ($pointsPlayer2 >= 50) {
+                        $stmt = $db->prepare("UPDATE games SET winner = player2 WHERE game_id = :game_id");
+                        $stmt->bindValue(':game_id', $game_id);
+                        $stmt->execute();
+                    }
+                }
+                do {
+                    $new_word = removeAccents(fetchRandomWord()[0]);
+                    $new_definition = fetchDictionariWord($new_word);
+                } while (!$new_definition);
+
+                $stmt = $db->prepare('UPDATE games SET word = :new_word, word_definition = :new_definition, word_revealed = :new_revealed WHERE game_id = :game_id');
+                $stmt->bindValue(':new_word', $new_word);
+                $stmt->bindValue(':new_definition', $new_definition);
+                $stmt->bindValue(':new_revealed', str_repeat('_', strlen($new_word)));
+                $stmt->bindValue(':game_id', $game_id);
                 $stmt->execute();
             }
         }
@@ -166,6 +252,33 @@ switch ($action) {
         if (!$game) {
             echo json_encode(['error' => 'Juego no encontrado']);
         } else {
+
+            $lastRevealTime = new DateTime($game['last_reveal_time']);
+            $now = new DateTime();
+            $interval = $now->getTimestamp() - $lastRevealTime->getTimestamp();
+
+            if ($interval >= 15) { 
+                $word = $game['word'];
+                $word_revealed = $game['word_revealed'];
+
+                // Revelar la siguiente letra no descubierta
+                for ($i = 0; $i < strlen($word); $i++) {
+                    if ($word_revealed[$i] === '_') {
+                        $word_revealed[$i] = $word[$i];
+                        break;
+                    }
+                }
+
+                // Actualizar el juego en la base de datos con la nueva palabra revelada y el tiempo de revelación
+                $stmt = $db->prepare('UPDATE games SET word_revealed = :word_revealed, last_reveal_time = :last_reveal_time WHERE game_id = :game_id');
+                $stmt->bindValue(':word_revealed', $word_revealed);
+                $stmt->bindValue(':last_reveal_time', $now->format('Y-m-d H:i:s'));
+                $stmt->bindValue(':game_id', $game_id);
+                $stmt->execute();
+
+                $game['word_revealed'] = $word_revealed; 
+            }
+
             echo json_encode([
                 'players' => [
                     'player1' => $game['player1'],
@@ -173,8 +286,10 @@ switch ($action) {
                 ],
                 'points' => [$game['points_player1'], $game['points_player2']],
                 'word_revealed' => $game['word_revealed'],
+                'definition' => $game['word_definition'],
                 'winner' => $game['winner']
             ]);
+
         }
         break;
 
@@ -206,6 +321,7 @@ switch ($action) {
 
         $word_revealed = $game['word_revealed'];
         $new_revealed = '';
+        $points_to_add = 0;
 
         if ($guess === $word) { //Loggeamos conflicto porque podria haberlo
           
@@ -221,27 +337,31 @@ switch ($action) {
 
             $new_revealed = $word;
         }
-        else 
-        {
-            
-            //Actualizamos palabra revelada
+        else {
             for ($i = 0; $i < strlen($word); $i++) {
-                if ($guess[$i] === $word[$i]) {
+                
+                if ($guess[$i] === $word[$i] && $word_revealed[$i] === '_') {
                     $new_revealed .= $word[$i];
+                    $points_to_add += 1; 
                 } else {
                     $new_revealed .= $word_revealed[$i];
                 }
             }
         }
+        $points_column = ($game['player1'] === $player_id) ? 'points_player1' : 'points_player2';
+        $new_points = $game[$points_column] + $points_to_add;
+        $stmt = $db->prepare('UPDATE games SET word_revealed = :word_revealed, ' . $points_column . ' = :new_points WHERE game_id = :game_id');
 
         //Actualizamos la palabra relevada en la BD i en el cliente independientmeent de si se ha resuelto el conflicto o no, 
         //Solo para que los clientes la tengan de manera visual 
 
-        $stmt = $db->prepare('UPDATE games SET word_revealed = :word_revealed WHERE game_id = :game_id');
         $stmt->bindValue(':word_revealed', $new_revealed);
+        $stmt->bindValue(':new_points', $new_points);
         $stmt->bindValue(':game_id', $game_id);
         $stmt->execute();
+    
 
-        echo json_encode(['word_revealed' => $new_revealed]);
+        echo json_encode(['word_revealed' => $new_revealed,'points' => $new_points]);
         break;
+        
  }

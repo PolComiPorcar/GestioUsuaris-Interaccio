@@ -1,6 +1,7 @@
 let idGame, idPlayer;
 let points = [0, 0, 0];
 let winner = null;
+let def = null;
 
 const textState = document.getElementById('state');
 const score1 = document.getElementById('score1');
@@ -8,6 +9,7 @@ const score2 = document.getElementById('score2');
 const divGame = document.getElementById('game');
 const inputGuess = document.getElementById('input-guess');
 const revealedWord = document.getElementById('word-container');
+const definition = document.getElementById('definition');
 const letterTemplate = revealedWord.querySelector('#letter-template');
 
 // Conectar al servidor del juego
@@ -18,6 +20,7 @@ function unirseAlJoc() {
             idGame = data.game_id;
             idPlayer = data.player_id;
             console.log(data.word);
+            console.log(data.definition);
             
             comprovarEstatDelJoc();
         });
@@ -35,6 +38,8 @@ function comprovarEstatDelJoc() {
 
             points = joc.points;
             winner = joc.winner;
+            def = joc.definition;
+            definition.innerText = def;
 
             score1.innerText = points[0];
             score2.innerText = points[1];
@@ -73,25 +78,18 @@ function comprovarEstatDelJoc() {
 }
 
 
+function createAndUpdateWordContainer(word_revealed) {
+    // Limpiar el contenedor de letras antes de agregar las nuevas
+    revealedWord.innerHTML = ''; // Limpia el contenido actual
 
-function createAndUpdateWordContainer(word_revealed){
-
-    const letters = revealedWord.querySelectorAll('.letter-tile');
-
-    if(!letters || letters.length  <= 1){
-
-        for(let i = 0; i < word_revealed.length; i++){
-            const letter = letterTemplate.content.cloneNode(true);
-            letter.querySelector('.letter-tile').innerText = word_revealed[i];
+    // Crear y agregar cada letra a 'revealedWord'
+    for (let i = 0; i < word_revealed.length; i++) {
+        const letter = letterTemplate.content.cloneNode(true);
+        const letterTile = letter.querySelector('.letter-tile');
+        if (letterTile) {
+            letterTile.innerText = word_revealed[i] || ''; // Asegúrate de que no sea undefined
             revealedWord.appendChild(letter);
         }
-        return;
-    }
-
-    //Si la palabra ya esta creada
-
-    for(let i = 0; i < word_revealed.length; i++){
-        letters[i].innerText = word_revealed[i];
     }
 }
 
