@@ -23,13 +23,13 @@
             <div>{FEEDBACK}</div>
         </header>
         <section>
-            <form method="GET" action="{RECOVER_PASSWORD_URL}">
+            <form method="{METHOD}" action="{RECOVER_PASSWORD_URL}">
                 <header>
                     <h2>Recuperar Contrasenya</h2>
                 </header>
-                <label for="recovery_email">Correu electrònic</label>
-                <input id="recovery_email" type="email" name="user_email" required />
-                <input type="submit" name="recover" value="Enviar" />
+                <label for="authentication_code">Codi de Recuperació</label>
+                <input id="authentication_code" type="number" name="authentication_code" required />
+                <input type="submit" name="authentication" value="Enviar" />
             </form>
         </section>
         <section>

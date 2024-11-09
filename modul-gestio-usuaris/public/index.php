@@ -16,6 +16,25 @@ $dotenv->load();
 $recaptcha_secret_key = $_ENV['RECAPTCHA_SECRET_KEY'];
 $email_pasword = $_ENV['EMAIL_PASSWORD'];
 
+function checkPwnedPassword($password) {
+    $sha1_password = strtoupper(sha1($password));
+    $prefix = substr($sha1_password, 0, 5); 
+
+    //GET A API Pwned Passwords
+    $url = "https://api.pwnedpasswords.com/range/$prefix";
+    $response = file_get_contents($url);
+
+    // Buscar si el hash completo está en la respuesta
+    $hash_suffix = substr($sha1_password, 5);
+    foreach (explode("\n", $response) as $line) {
+        list($hash, $count) = explode(":", trim($line));
+        if ($hash === $hash_suffix) {
+            return true; 
+        }
+    }
+    return false; 
+}
+
 session_start();
 
 // defaults
@@ -29,7 +48,8 @@ $configuration = array(
     '{REGISTER_URL}'      => '/?page=register',
     '{SITE_NAME}'         => 'La meva pàgina',
     '{LOST_PWD}'          => '/?page=lostpwd',
-    '{RESET_PWD}'         => '/?page=resetpwd'
+    '{RESET_PWD}'         => '/?page=resetpwd',
+    '{AUTH_CODE}'         => '/?page=authentication'
 );
 // parameter processing
 $parameters = $_POST;
@@ -80,35 +100,39 @@ else if (isset($parameters['register'])) {
             $db = new PDO($db_connection);
             $username = $parameters['user_name'];
             $password = $parameters['user_password'];
+            if (checkPwnedPassword($password)) {
+                $configuration['{FEEDBACK}'] = '<mark>ERROR: Aquesta contrasenya ha estat compromesa en filtracions anteriors. Si us plau, tria una altra.</mark>';
+            }
+            else{
+                // Mirar que l'usuari no existeixi a la base de dades
+                $sql_check_user = 'SELECT * FROM users WHERE user_name = :user_name';
+                $query_check_user = $db->prepare($sql_check_user);
+                $query_check_user->bindValue(':user_name', $username);
 
-            // Mirar que l'usuari no existeixi a la base de dades
-            $sql_check_user = 'SELECT * FROM users WHERE user_name = :user_name';
-            $query_check_user = $db->prepare($sql_check_user);
-            $query_check_user->bindValue(':user_name', $username);
+                if ($query_check_user->execute() && !$query_check_user->fetchObject()) {
 
-            if ($query_check_user->execute() && !$query_check_user->fetchObject()) {
-
-                $pattern = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/';
-                if (!preg_match($pattern, $password)) {
-                    $configuration['{FEEDBACK}'] = '<mark>ERROR: La contrasenya no compleix els requisits (almenys 8 caràcters, una majúscula, una minúscula i un número)</mark>';
-                }
-                else{       
-                    $hashed_pwd = password_hash($password, PASSWORD_BCRYPT);
-    
-                    $sql = 'INSERT INTO users (user_name,user_email, user_password) VALUES (:user_name,:user_email, :user_password)';
-                    $query = $db->prepare($sql);
-                    $query->bindValue(':user_name', $username);
-                    $query->bindValue(':user_password', $hashed_pwd);
-                    $query->bindValue(':user_email', $parameters['user_email']);
-    
-                    if ($query->execute()) {
-                        $configuration['{FEEDBACK}'] = 'Creat el compte <b>' . htmlentities($username) . '</b>';
-                        $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
+                    $pattern = '/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/';
+                    if (!preg_match($pattern, $password)) {
+                        $configuration['{FEEDBACK}'] = '<mark>ERROR: La contrasenya no compleix els requisits (almenys 8 caràcters, una majúscula, una minúscula i un número)</mark>';
                     }
+                    else{       
+                        $hashed_pwd = password_hash($password, PASSWORD_BCRYPT);
+        
+                        $sql = 'INSERT INTO users (user_name,user_email, user_password) VALUES (:user_name,:user_email, :user_password)';
+                        $query = $db->prepare($sql);
+                        $query->bindValue(':user_name', $username);
+                        $query->bindValue(':user_password', $hashed_pwd);
+                        $query->bindValue(':user_email', $parameters['user_email']);
+        
+                        if ($query->execute()) {
+                            $configuration['{FEEDBACK}'] = 'Creat el compte <b>' . htmlentities($username) . '</b>';
+                            $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
+                        }
+                    }
+                } 
+                else {
+                    $configuration['{FEEDBACK}'] = "<mark>ERROR: No s'ha pogut crear el compte <b>" . htmlentities($username) . '</b> (ja existeix)</mark>';
                 }
-            } 
-            else {
-                $configuration['{FEEDBACK}'] = "<mark>ERROR: No s'ha pogut crear el compte <b>" . htmlentities($username) . '</b> (ja existeix)</mark>';
             }
         }
     }
@@ -144,7 +168,7 @@ else if (isset($parameters['login'])) {
     
 }
 // process template and show output
-else if (isset($parameters['recover'])){
+else if (isset($_GET['recover'])){
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['user_email'])) {
         // Enviar correo para restablecer la contraseña
         $db = new PDO($db_connection);
