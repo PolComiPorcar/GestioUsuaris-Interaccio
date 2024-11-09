@@ -78,24 +78,18 @@ function comprovarEstatDelJoc() {
 }
 
 
-function createAndUpdateWordContainer(word_revealed){
+function createAndUpdateWordContainer(word_revealed) {
+    // Limpiar el contenedor de letras antes de agregar las nuevas
+    revealedWord.innerHTML = ''; // Limpia el contenido actual
 
-    const letters = revealedWord.querySelectorAll('.letter-tile');
-
-    if(!letters || letters.length  <= 1){
-
-        for(let i = 0; i < word_revealed.length; i++){
-            const letter = letterTemplate.content.cloneNode(true);
-            letter.querySelector('.letter-tile').innerText = word_revealed[i];
+    // Crear y agregar cada letra a 'revealedWord'
+    for (let i = 0; i < word_revealed.length; i++) {
+        const letter = letterTemplate.content.cloneNode(true);
+        const letterTile = letter.querySelector('.letter-tile');
+        if (letterTile) {
+            letterTile.innerText = word_revealed[i] || ''; // Asegúrate de que no sea undefined
             revealedWord.appendChild(letter);
         }
-        return;
-    }
-
-    //Si la palabra ya esta creada
-
-    for(let i = 0; i < word_revealed.length; i++){
-        letters[i].innerText = word_revealed[i];
     }
 }
 
