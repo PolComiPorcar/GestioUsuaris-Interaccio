@@ -35,6 +35,26 @@ function checkPwnedPassword($password) {
     return false; 
 }
 
+function destroySession() {
+    // Borrar los datos de sesión
+    session_unset();
+    session_destroy();
+
+    // Borrar la cookie de sesión
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 3600, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+    }
+}
+
+function verifyAuthentication() {
+    if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
+        destroySession(); // Asegurarse de que no queden residuos
+        header('Location: /?page=login');
+        exit;
+    }
+}
+
 session_start();
 
 // defaults
@@ -62,27 +82,25 @@ if (isset($_GET['page'])) {
         if (!isset($_SESSION['user_name'])) {
             $template = 'login';
             $configuration['{LOGIN_USERNAME}'] = '';
+        } else if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
+            $template = 'authentication';
         } else {
             $configuration['{FEEDBACK}'] = 'Ja has iniciat la sessió com <b>' . htmlentities($_SESSION['user_name']) . '</b>.';
             $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
             $configuration['{LOGIN_LOGOUT_URL}'] = '/?page=logout';
         }
-    }
-    else if($_GET['page'] == 'lostpwd'){
+    } else if ($_GET['page'] == 'lostpwd') {
         $template = 'lostpwd';
-    }
-    else if($_GET['page'] == 'resetpwd'){
+    } else if ($_GET['page'] == 'resetpwd') {
         $template = 'resetpwd';
-    }
-    else if ($_GET['page'] == 'logout') {
-        // Logout: Destroy session and remove cookie
-        session_unset();
-        session_destroy();
-        setcookie(session_name(), '', time() - 3600, "/", true, true); // Remove the session cookie
-        header('Location: /?page=login'); // Redirect to login
+    } else if ($_GET['page'] == 'authentication') {
+        $template = 'authentication';
+    } else if ($_GET['page'] == 'logout') {
+        destroySession();
+        header('Location: /?page=login');
         exit;
     }
-} 
+}
 else if (isset($parameters['register'])) {
 
     if (!isset($parameters['g-recaptcha-response']) || empty($parameters['g-recaptcha-response'])) {
@@ -141,9 +159,7 @@ else if (isset($parameters['register'])) {
    
 } 
 else if (isset($parameters['login'])) {
-   
     $db = new PDO($db_connection);
-
     $username = $parameters['user_name'];
     $password = $parameters['user_password'];
 
@@ -153,19 +169,43 @@ else if (isset($parameters['login'])) {
     $query->execute();
     $result_row = $query->fetchObject();
 
-    // Verificar contrasenya
     if ($result_row && password_verify($password, $result_row->user_password)) {
-        $_SESSION['user_name'] = $username; // Configurar la sessió de l'usuari identificat
-        setcookie(session_name(), session_id(), time() + 3600, "/"); // Configurar cookie de sessió (expira en 1 hora)
+        session_regenerate_id(true); // Regenerar el ID de sesión
+        $_SESSION['user_name'] = $username;
+        $_SESSION['authenticated'] = false; // Usuario autenticado, pero 2FA pendiente
+        setcookie(session_name(), session_id(), time() + 3600, "/");
 
-        $configuration['{FEEDBACK}'] = '"Sessió" iniciada com <b>' . htmlentities($username) . '</b>';
-        $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar "sessió"';
-        $configuration['{LOGIN_LOGOUT_URL}'] = '/?page=logout';
+        $two_fa_code = random_int(100000, 999999);
+        $_SESSION['authentication_code'] = $two_fa_code;
+
+        $mail = new PHPMailer(true);
+        try {
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'u1979261@campus.udg.edu';
+            $mail->Password   = $email_pasword;
+            $mail->SMTPSecure = 'ssl';
+            $mail->Port       = 465;
+
+            $mail->setFrom('u1979261@campus.udg.edu');
+            $mail->addAddress($result_row->user_email);
+
+            $mail->isHTML(true);
+            $mail->Subject = 'Codi de verificació de dos factors (2FA)';
+            $mail->Body    = "Hola,<br><br>El teu codi de verificació de dos factors (2FA) és: <b>$two_fa_code</b>.<br><br>Introdueix aquest codi per completar la identificació.";
+
+            $mail->send();
+            $configuration['{FEEDBACK}'] = 'S\'ha enviat un codi de verificació al teu correu electrònic.';
+
+            header('Location: /?page=authentication');
+            exit;
+        } catch (Exception $e) {
+            $configuration['{FEEDBACK}'] = "El correu no va poder ser enviat. Error: {$mail->ErrorInfo}";
+        }
     } else {
         $configuration['{FEEDBACK}'] = '<mark>ERROR: Usuari desconegut o contrasenya incorrecta</mark>';
     }
-
-    
 }
 // process template and show output
 else if (isset($_GET['recover'])){
@@ -234,6 +274,19 @@ else if (isset($parameters['newpwd'])){
     $query_update->bindValue(':reset_token', $token);
     $query_update->bindValue(':user_password', $hashed_pwd);
     $query_update->execute();
+}
+else if (isset($parameters['authentication_code'])) {
+    $entered_code = $parameters['authentication_code'];
+    if (isset($_SESSION['authentication_code']) && $_SESSION['authentication_code'] == $entered_code) {
+        unset($_SESSION['authentication_code']);
+        $_SESSION['authenticated'] = true;
+        $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
+        $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
+        $configuration['{LOGIN_LOGOUT_URL}'] = '/?page=logout';
+    } else {
+        $configuration['{FEEDBACK}'] = '<mark>ERROR: Codi de verificació incorrecte.</mark>';
+        destroySession();
+    }
 }
 
 
