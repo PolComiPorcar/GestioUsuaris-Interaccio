@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ca" color-mode="user">
+
+<head>
+    <!-- dades tècniques de la pàgina -->
+    <meta charset="utf-8">
+    <title>{SITE_NAME}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"><!-- per a dispositius mòbils -->
+    <meta name="author" content="Antonio Bueno (UdG)">
+    <!-- estètica de la pàgina -->
+    <link rel="icon" href="/favicon.png">
+    <link rel="stylesheet" href="mvp.css">
+    <link rel="stylesheet" href="el_meu.css">
+    <!-- per afegir interactivitat a la pàgina -->
+    <script defer src="el_meu.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            // Elementos
+            const isLoggedIn = document.body.getAttribute("isLoggedIn") === true;
+            console.log(document.body.getAttribute("isLoggedIn"))
+
+            const authSection = document.getElementById("auth-section");
+            const guestSection = document.getElementById("guest-section");
+
+            authSection.style.display = isLoggedIn ? "block" : "none";
+            guestSection.style.display = isLoggedIn ? "none" : "block";
+        });
+    </script>
+</head>
+
+<body isLoggedIn="{IS_LOGGED_IN}">
+    <!-- contingut visible de la pàgina -->
+    <main>
+        <header>
+            <h1>{SITE_NAME}</h1>
+            <div>{FEEDBACK}</div>
+        </header>
+        <section id="guest-section" style="display: none;">
+            <!-- Sección que cambia según el estado de autenticación -->
+            <div id="login">
+                <a href="/?page=login">Iniciar sessió</a>
+            </div>
+            <div id="register">
+                <a href="/?page=register">Registrar-me</a>
+            </div>
+        </section>
+        <section id="auth-section" style="display: none;">
+            <div>
+                <a href="/?page=logout">Tancar Sessió</a>
+            </div>
+            <div>
+                <a href="/?page=game">JUGAR</a>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

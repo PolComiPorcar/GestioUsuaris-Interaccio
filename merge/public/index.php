@@ -47,19 +47,20 @@ function destroySession() {
     }
 }
 
-function verifyAuthentication() {
-    if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
-        destroySession(); // Asegurarse de que no queden residuos
-        header('Location: /?page=login');
-        exit;
-    }
-}
-
 session_start();
 
 // defaults
 $template = 'home';
 $db_connection = 'sqlite:..\private\main.db';
+
+$is_logged_in = false;
+
+$AUTH_PAGES = ["register", "login", "game", "resetpwd"];
+
+if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) 
+    $is_logged_in = true;
+
+
 $configuration = array(
     '{FEEDBACK}' => '',
     '{LOGIN_LOGOUT_TEXT}' => 'Identificar-me',
@@ -69,10 +70,23 @@ $configuration = array(
     '{SITE_NAME}'         => 'La meva pàgina',
     '{LOST_PWD}'          => '/?page=lostpwd',
     '{RESET_PWD}'         => '/?page=resetpwd',
-    '{AUTH_CODE}'         => '/?page=authentication'
+    '{AUTH_CODE}'         => '/?page=authentication',
+    '{IS_LOGGED_IN}'      => $is_logged_in,
 );
 // parameter processing
 $parameters = $_POST;
+$configuration['{FEEDBACK}'] = "sessio: " . implode(",", $_SESSION) . $is_logged_in;
+
+if ($is_logged_in === false) {
+    if (isset($_GET['page'])) {
+        $page = $_GET['page'];
+
+        foreach ($AUTH_PAGES as $p) {
+            ;
+        }
+    }
+}
+
 if (isset($_GET['page'])) {
     if ($_GET['page'] == 'register') {
         if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
@@ -103,7 +117,7 @@ if (isset($_GET['page'])) {
     }
     else if ($_GET['page'] == 'logout') {
         destroySession();
-        header('Location: /?page=login');
+        header('Location: /');
         exit;
     }
 }
@@ -289,6 +303,8 @@ else if (isset($parameters['authentication_code'])) {
         $configuration['{FEEDBACK}'] = 'Sessió iniciada com <b>' . htmlentities($_SESSION['user_name']) . '</b>';
         $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
         $configuration['{LOGIN_LOGOUT_URL}'] = '/?page=logout';
+        header('Location: /');
+        exit;
     } else {
         $configuration['{FEEDBACK}'] = '<mark>ERROR: Codi de verificació incorrecte.</mark>';
         destroySession();
@@ -296,6 +312,6 @@ else if (isset($parameters['authentication_code'])) {
 }
 
 
-$html = file_get_contents('plantilla_' . $template . '.html', true);
+$html = file_get_contents('html/' . $template . '.html', true);
 $html = str_replace(array_keys($configuration), array_values($configuration), $html);
 echo $html;
