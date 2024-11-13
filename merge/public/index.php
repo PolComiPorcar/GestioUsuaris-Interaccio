@@ -53,12 +53,13 @@ session_start();
 $template = 'home';
 $db_connection = 'sqlite:..\private\main.db';
 
-$is_logged_in = false;
+$is_logged_in = 'false';
 
-$AUTH_PAGES = ["register", "login", "game", "resetpwd"];
+$AUTH_ONLY_PAGES = ["home", "game", "resetpwd"]; // Només pots entrar a aquestes pàgines si has iniciat sessió
+$GUEST_ONLY_PAGES = ["home", "login", "register", "lostpwd", "authentication"]; // Només pots entrar a aquestes pàgines si NO has iniciat sessió
 
 if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) 
-    $is_logged_in = true;
+    $is_logged_in = 'true';
 
 
 $configuration = array(
@@ -77,35 +78,28 @@ $configuration = array(
 $parameters = $_POST;
 $configuration['{FEEDBACK}'] = "sessio: " . implode(",", $_SESSION) . $is_logged_in;
 
-if ($is_logged_in === false) {
-    if (isset($_GET['page'])) {
-        $page = $_GET['page'];
+if (isset($_GET['page'])) {
+    $is_allowed = true;
 
-        foreach ($AUTH_PAGES as $p) {
-            ;
+    if ($is_logged_in === 'false') { // Si ets un guest
+        foreach ($AUTH_ONLY_PAGES as $p) {
+            if ($_GET['page'] == $p) $is_allowed = false;
         }
     }
-}
+    else { // Si has iniciat sessió
+        foreach ($GUEST_ONLY_PAGES as $p) {
+            if ($_GET['page'] == $p) $is_allowed = false;
+        }
+    }
 
-if (isset($_GET['page'])) {
+    if (!$is_allowed) {
+        header('Location: /');
+        exit;
+    }
+
+    // A partir d'aquí, l'usuari està en una pàgina en la que pot estar
     if ($_GET['page'] == 'register') {
-        if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
-            $template = 'register';
-            $configuration['{REGISTER_USERNAME}'] = '';
-            $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Ja tinc un compte';
-        }
-        $configuration['{FEEDBACK}'] = 'Ja has iniciat la sessió com <b>' . htmlentities($_SESSION['user_name']) . '</b>.';
-    } else if ($_GET['page'] == 'login') {
-        if (!isset($_SESSION['user_name'])) {
-            $template = 'login';
-            $configuration['{LOGIN_USERNAME}'] = '';
-        } else if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
-            $template = 'authentication';
-        } else {
-            $configuration['{FEEDBACK}'] = 'Ja has iniciat la sessió com <b>' . htmlentities($_SESSION['user_name']) . '</b>.';
-            $configuration['{LOGIN_LOGOUT_TEXT}'] = 'Tancar sessió';
-            $configuration['{LOGIN_LOGOUT_URL}'] = '/?page=logout';
-        }
+        $template = 'register';
     } else if ($_GET['page'] == 'lostpwd') {
         $template = 'lostpwd';
     } else if ($_GET['page'] == 'resetpwd') {
@@ -114,15 +108,19 @@ if (isset($_GET['page'])) {
         $template = 'authentication';
     } else if ($_GET['page'] == 'game') {
         $template = 'game';
-    }
-    else if ($_GET['page'] == 'logout') {
+    } else if ($_GET['page'] == 'login') {
+        if (!isset($_SESSION['user_name'])) {
+            $template = 'login';
+        } else if (!isset($_SESSION['authenticated']) || $_SESSION['authenticated'] !== true) {
+            $template = 'authentication';
+        }
+    } else if ($_GET['page'] == 'logout') {
         destroySession();
         header('Location: /');
         exit;
     }
 }
 else if (isset($parameters['register'])) {
-
     if (!isset($parameters['g-recaptcha-response']) || empty($parameters['g-recaptcha-response'])) {
         $configuration['{FEEDBACK}'] = '<mark>ERROR: Has de completar el CAPTCHA</mark>';
     } else {
@@ -174,9 +172,6 @@ else if (isset($parameters['register'])) {
             }
         }
     }
-
-
-   
 } 
 else if (isset($parameters['login'])) {
     $db = new PDO($db_connection);
@@ -310,7 +305,6 @@ else if (isset($parameters['authentication_code'])) {
         destroySession();
     }
 }
-
 
 $html = file_get_contents('html/' . $template . '.html', true);
 $html = str_replace(array_keys($configuration), array_values($configuration), $html);

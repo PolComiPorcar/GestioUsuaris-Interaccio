@@ -10,9 +10,7 @@
     <!-- estètica de la pàgina -->
     <link rel="icon" href="/favicon.png">
     <link rel="stylesheet" href="mvp.css">
-    <link rel="stylesheet" href="el_meu.css">
     <!-- per afegir interactivitat a la pàgina -->
-    <script defer src="el_meu.js"></script>
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 
@@ -29,7 +27,7 @@
                     <h2>Crea un nou compte</h2>
                 </header>
                 <label for="register_username">Nom d'usuari</label>
-                <input id="register_username" type="text" name="user_name" value="{REGISTER_USERNAME}" />
+                <input id="register_username" type="text" name="user_name"/>
                 <label for="register_username">Correu</label>
                 <input id="register_username" type="text" name="user_email" />
                 <label for="register_password">Contrasenya</label>
@@ -40,7 +38,7 @@
         </section>
         <section>
             <div>
-                <a href="{LOGIN_LOGOUT_URL}">{LOGIN_LOGOUT_TEXT}</a>
+                <a href="{LOGIN_LOGOUT_URL}">Ja tinc un compte</a>
             </div>
         </section>
     </main>

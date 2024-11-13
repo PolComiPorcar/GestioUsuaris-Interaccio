@@ -114,7 +114,7 @@ session_start();
 
 // Conectar a la base de datos SQLite
 try {
-    $db = new PDO('sqlite:../private/games.db');
+    $db = new PDO('sqlite:../private/main.db');
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
     echo json_encode(['error' => 'Error de conexión: ' . $e->getMessage()]);
