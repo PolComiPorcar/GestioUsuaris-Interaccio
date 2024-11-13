@@ -55,8 +55,8 @@ $db_connection = 'sqlite:..\private\main.db';
 
 $is_logged_in = 'false';
 
-$AUTH_ONLY_PAGES = ["home", "game", "resetpwd"]; // Només pots entrar a aquestes pàgines si has iniciat sessió
-$GUEST_ONLY_PAGES = ["home", "login", "register", "lostpwd", "authentication"]; // Només pots entrar a aquestes pàgines si NO has iniciat sessió
+$AUTH_ONLY_PAGES = ["game"]; // Només pots entrar a aquestes pàgines si has iniciat sessió
+$GUEST_ONLY_PAGES = ["login", "register", "lostpwd", "authentication"]; // Només pots entrar a aquestes pàgines si NO has iniciat sessió
 
 if (isset($_SESSION['authenticated']) && $_SESSION['authenticated'] === true) 
     $is_logged_in = 'true';
