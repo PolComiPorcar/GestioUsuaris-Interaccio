@@ -22,17 +22,24 @@
             <div>{FEEDBACK}</div>
         </header>
         <section>
-            <form method="{METHOD}" action="/">
+            <form id="registerForm" method="{METHOD}" action="/">
                 <header>
                     <h2>Crea un nou compte</h2>
                 </header>
                 <label for="register_username">Nom d'usuari</label>
-                <input id="register_username" type="text" name="user_name"/>
-                <label for="register_username">Correu</label>
-                <input id="register_username" type="text" name="user_email" />
+                <input id="register_username" type="text" name="user_name" required />
+                
+                <label for="register_email">Correu</label>
+                <input id="register_email" type="email" name="user_email" required />
+                
                 <label for="register_password">Contrasenya</label>
-                <input id="register_password" type="password" name="user_password" />
+                <input id="register_password" type="password" name="user_password" required />
+                
+                <label for="register_password_confirm">Repeteix la contrasenya</label>
+                <input id="register_password_confirm" type="password" name="user_password_confirm" required />
+                
                 <div class="g-recaptcha" data-sitekey="6LfgnlgqAAAAAB4balXu5YQmf_FahpZR7kYKa8u3"></div>
+                
                 <input type="submit" name="register" value="Crear compte" />
             </form>
         </section>
@@ -41,7 +48,19 @@
                 <a href="{LOGIN_LOGOUT_URL}">Ja tinc un compte</a>
             </div>
         </section>
+        
     </main>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', function(event) {
+            const password = document.getElementById('register_password').value;
+            const confirmPassword = document.getElementById('register_password_confirm').value;
+            
+            if (password !== confirmPassword) {
+                event.preventDefault();
+                alert('Les contrasenyes no coincideixen. Si us plau, verifica-les.');
+            }
+        });
+    </script>
 </body>
 
 </html>
