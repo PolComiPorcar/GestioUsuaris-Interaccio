@@ -198,7 +198,7 @@ function conflictResolver($db, $game_id, $conflictRecords, $latencyP1, $latencyP
     // Calculate the difference between current time and the oldest guess time in milliseconds
     $interval = $nowInMilliseconds - (int)$oldestGuessTime->format('U.u') * 1000;
 
-    if ($interval < 5000) {
+    if ($interval < 200) {
         return; 
     }
 
@@ -530,6 +530,8 @@ switch ($action) {
         break;
     case "restart":
 
+        $game_id = $_GET["game_id"];
+
         $default_points = 0;
         $default_word = '';
         $default_word_revealed = '';
@@ -554,16 +556,29 @@ switch ($action) {
         $stmt = $db->prepare($query);
 
         // Bind the parameters
-        $stmt->bindValue(':points_player1', $default_points, SQLITE3_INTEGER);
-        $stmt->bindValue(':points_player2', $default_points, SQLITE3_INTEGER);
-        $stmt->bindValue(':word', $default_word, SQLITE3_TEXT);
-        $stmt->bindValue(':word_revealed', $default_word_revealed, SQLITE3_TEXT);
-        $stmt->bindValue(':word_definition', $default_word_definition, SQLITE3_TEXT);
-        $stmt->bindValue(':next_word_time', $default_next_word_time, SQLITE3_INTEGER);
-        $stmt->bindValue(':winner', $default_winner, SQLITE3_TEXT); // Use SQLite3_TEXT for null or string
-        $stmt->bindValue(':last_reveal_time', $default_last_reveal_time, SQLITE3_INTEGER);
-        $stmt->bindValue(':game_id', $game_id, SQLITE3_INTEGER);
+        $stmt->bindValue(':points_player2', $default_points);
+        $stmt->bindValue(':word', $default_word);
+        $stmt->bindValue(':word_revealed', $default_word_revealed);
+        $stmt->bindValue(':word_definition', $default_word_definition);
+        $stmt->bindValue(':next_word_time', $default_next_word_time);
+        $stmt->bindValue(':winner', $default_winner);
+        $stmt->bindValue(':last_reveal_time', $default_last_reveal_time);
+        $stmt->bindValue(':game_id', $game_id);
         $stmt->execute();   
+
+        do {
+            $word = removeAccents(fetchRandomWord()[0]);
+            $definition = fetchDictionariWord($word);
+        } while (!$definition);
+        $lastRevealTime = (new DateTime())->format('Y-m-d H:i:s');
+
+        $stmt->bindValue(':word', $word);
+        $stmt->bindValue(':word_definition', $definition);
+        $stmt->bindValue(':word_revealed', str_repeat('_', strlen($word)));
+        $stmt->bindValue(':last_reveal_time', $lastRevealTime);
+        $stmt->execute();
+        
+        echo json_encode(['word' => $word, 'definition' => $definition]);
         break;
 }
 ?>

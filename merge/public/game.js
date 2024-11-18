@@ -113,6 +113,7 @@ function enviarParaula(event) {
   fetch(`game.php?action=guess&game_id=${idGame}&guess=${guess}`)
     .then((response) => response.json())
     .then((data) => {
+      createAndUpdateWordContainer(data.word_revealed);
       inputGuess.value = '';
     });
 }
@@ -129,7 +130,13 @@ function ping() {
 }
 
 function restartGame() {
-  fetch(`game.php?action=restart&game_id=${idGame}`);
+  fetch(`game.php?action=restart&game_id=${idGame}`)
+    .then((response) => response.json())
+    .then((data) => {
+      restartButton.style.display = 'none';
+      console.log(data.word);
+      console.log(data.definition);
+    });
 }
 
 // Iniciar el juego
